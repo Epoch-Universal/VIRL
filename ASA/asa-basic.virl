@@ -1,18 +1,288 @@
 <?xml version="1.0" encoding="UTF-8" standalone="yes"?>
 <topology xmlns="http://www.cisco.com/VIRL" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" schemaVersion="0.95" xsi:schemaLocation="http://www.cisco.com/VIRL https://raw.github.com/CiscoVIRL/schema/v0.95/virl.xsd">
     <node name="NY-ASA" type="SIMPLE" subtype="ASAv" location="324,536">
-        <interface id="0" name="GigabitEthernet0/0"/>
-        <interface id="1" name="GigabitEthernet0/1"/>
-        <interface id="2" name="GigabitEthernet0/2"/>
+        <extensions>
+            <entry key="config" type="string">! ASAv Config generated on 2016-10-11 15:28
+! by autonetkit_0.23.2
+!
+hostname NY-ASA
+username cisco password cisco privilege 15
+enable password cisco
+passwd cisco
+names
+!
+interface GigabitEthernet0/0
+  description to internet
+  duplex full
+  nameif outside
+  security-level 0
+  no shutdown
+  ip address 10.0.0.2 255.255.255.248
+interface GigabitEthernet0/1
+  description to ny-dmz
+  duplex full
+  nameif outside-1
+  security-level 0
+  no shutdown
+  ip address 10.0.128.2 255.255.255.252
+interface GigabitEthernet0/2
+  description to ny-inside
+  duplex full
+  nameif outside-2
+  security-level 0
+  no shutdown
+  ip address 10.0.0.9 255.255.255.252
+interface Management0/0
+  description OOB Management
+  duplex full
+  management-only
+  nameif mgmt
+  security-level 100
+  no shutdown
+  ! Configured on launch
+  no ip address
+!
+same-security-traffic permit inter-interface
+logging enable
+logging asdm informational
+user-identity default-domain LOCAL
+aaa authentication ssh console LOCAL
+http server enable
+http 0.0.0.0 0.0.0.0 mgmt
+ssh 0.0.0.0 0.0.0.0 mgmt
+telnet 0.0.0.0 0.0.0.0 mgmt
+http 0.0.0.0 0.0.0.0 outside
+ssh 0.0.0.0 0.0.0.0 outside
+telnet 0.0.0.0 0.0.0.0 outside
+http 0.0.0.0 0.0.0.0 outside-1
+ssh 0.0.0.0 0.0.0.0 outside-1
+telnet 0.0.0.0 0.0.0.0 outside-1
+http 0.0.0.0 0.0.0.0 outside-2
+ssh 0.0.0.0 0.0.0.0 outside-2
+telnet 0.0.0.0 0.0.0.0 outside-2
+ssh version 2
+crypto key generate rsa modulus 768
+telnet timeout 15
+console timeout 0
+username cisco password cisco privilege 15
+!
+class-map inspection_default
+ match default-inspection-traffic
+!
+!
+policy-map type inspect dns preset_dns_map
+ parameters
+  message-length maximum client auto
+  message-length maximum 512
+policy-map global_policy
+ class inspection_default
+  inspect ip-options
+  inspect netbios
+  inspect rtsp
+  inspect sunrpc
+  inspect tftp
+  inspect xdmcp
+  inspect dns preset_dns_map
+  inspect ftp
+  inspect h323 h225
+  inspect h323 ras
+  inspect rsh
+  inspect esmtp
+  inspect sqlnet
+  inspect sip
+  inspect skinny
+  inspect icmp
+  inspect http
+!
+service-policy global_policy global
+no call-home reporting anonymous
+call-home
+ profile CiscoTAC-1
+  no active
+end
+        </entry>
+            <entry key="AutoNetkit.mgmt_ip" type="string"></entry>
+        </extensions>
+        <interface id="0" name="GigabitEthernet0/0" ipv4="10.0.0.2" netPrefixLenV4="29"/>
+        <interface id="1" name="GigabitEthernet0/1" ipv4="10.0.128.2" netPrefixLenV4="30"/>
+        <interface id="2" name="GigabitEthernet0/2" ipv4="10.0.0.9" netPrefixLenV4="30"/>
     </node>
     <node name="ny-dmz-server" type="SIMPLE" subtype="server" location="152,741" ipv4="10.50.50.10">
-        <interface id="0" name="eth1"/>
+        <extensions>
+            <entry key="config" type="string">#cloud-config
+bootcmd:
+- ln -s -t /etc/rc.d /etc/rc.local
+hostname: ny-dmz-server
+manage_etc_hosts: true
+runcmd:
+- start ttyS0
+- systemctl start getty@ttyS0.service
+- systemctl start rc-local
+- sed -i '/^\s*PasswordAuthentication\s\+no/d' /etc/ssh/sshd_config
+- echo "UseDNS no" &gt;&gt; /etc/ssh/sshd_config
+- service ssh restart
+- service sshd restart
+users:
+- default
+- gecos: User configured by VIRL Configuration Engine 0.23.7
+  lock-passwd: false
+  name: cisco
+  plain-text-passwd: cisco
+  shell: /bin/bash
+  ssh-authorized-keys:
+  - VIRL-USER-SSH-PUBLIC-KEY
+  sudo: ALL=(ALL) ALL
+write_files:
+- path: /etc/init/ttyS0.conf
+  owner: root:root
+  content: |
+    # ttyS0 - getty
+    # This service maintains a getty on ttyS0 from the point the system is
+    # started until it is shut down again.
+    start on stopped rc or RUNLEVEL=[12345]
+    stop on runlevel [!12345]
+    respawn
+    exec /sbin/getty -L 115200 ttyS0 vt102
+  permissions: '0644'
+- path: /etc/systemd/system/dhclient@.service
+  content: |
+    [Unit]
+    Description=Run dhclient on %i interface
+    After=network.target
+    [Service]
+    Type=oneshot
+    ExecStart=/sbin/dhclient %i -pf /var/run/dhclient.%i.pid -lf /var/lib/dhclient/dhclient.%i.lease
+    RemainAfterExit=yes
+  owner: root:root
+  permissions: '0644'
+- path: /etc/rc.local
+  owner: root:root
+  permissions: '0755'
+  content: |-
+    #!/bin/sh
+    ifconfig eth1 up 10.0.128.1 netmask 255.255.255.252
+    exit 0
+</entry>
+        </extensions>
+        <interface id="0" name="eth1" ipv4="10.0.128.1" netPrefixLenV4="30"/>
     </node>
     <node name="ny-internal-server" type="SIMPLE" subtype="server" location="324,732" ipv4="10.10.10.100">
-        <interface id="0" name="eth1"/>
+        <extensions>
+            <entry key="config" type="string">#cloud-config
+bootcmd:
+- ln -s -t /etc/rc.d /etc/rc.local
+hostname: ny-internal-server
+manage_etc_hosts: true
+runcmd:
+- start ttyS0
+- systemctl start getty@ttyS0.service
+- systemctl start rc-local
+- sed -i '/^\s*PasswordAuthentication\s\+no/d' /etc/ssh/sshd_config
+- echo "UseDNS no" &gt;&gt; /etc/ssh/sshd_config
+- service ssh restart
+- service sshd restart
+users:
+- default
+- gecos: User configured by VIRL Configuration Engine 0.23.7
+  lock-passwd: false
+  name: cisco
+  plain-text-passwd: cisco
+  shell: /bin/bash
+  ssh-authorized-keys:
+  - VIRL-USER-SSH-PUBLIC-KEY
+  sudo: ALL=(ALL) ALL
+write_files:
+- path: /etc/init/ttyS0.conf
+  owner: root:root
+  content: |
+    # ttyS0 - getty
+    # This service maintains a getty on ttyS0 from the point the system is
+    # started until it is shut down again.
+    start on stopped rc or RUNLEVEL=[12345]
+    stop on runlevel [!12345]
+    respawn
+    exec /sbin/getty -L 115200 ttyS0 vt102
+  permissions: '0644'
+- path: /etc/systemd/system/dhclient@.service
+  content: |
+    [Unit]
+    Description=Run dhclient on %i interface
+    After=network.target
+    [Service]
+    Type=oneshot
+    ExecStart=/sbin/dhclient %i -pf /var/run/dhclient.%i.pid -lf /var/lib/dhclient/dhclient.%i.lease
+    RemainAfterExit=yes
+  owner: root:root
+  permissions: '0644'
+- path: /etc/rc.local
+  owner: root:root
+  permissions: '0755'
+  content: |-
+    #!/bin/sh
+    ifconfig eth1 up 10.0.0.10 netmask 255.255.255.252
+    exit 0
+</entry>
+        </extensions>
+        <interface id="0" name="eth1" ipv4="10.0.0.10" netPrefixLenV4="30"/>
     </node>
     <node name="internet-device" type="SIMPLE" subtype="server" location="422,299" ipv4="155.201.55.101">
-        <interface id="0" name="eth1"/>
+        <extensions>
+            <entry key="config" type="string">#cloud-config
+bootcmd:
+- ln -s -t /etc/rc.d /etc/rc.local
+hostname: internet-device
+manage_etc_hosts: true
+runcmd:
+- start ttyS0
+- systemctl start getty@ttyS0.service
+- systemctl start rc-local
+- sed -i '/^\s*PasswordAuthentication\s\+no/d' /etc/ssh/sshd_config
+- echo "UseDNS no" &gt;&gt; /etc/ssh/sshd_config
+- service ssh restart
+- service sshd restart
+users:
+- default
+- gecos: User configured by VIRL Configuration Engine 0.23.7
+  lock-passwd: false
+  name: cisco
+  plain-text-passwd: cisco
+  shell: /bin/bash
+  ssh-authorized-keys:
+  - VIRL-USER-SSH-PUBLIC-KEY
+  sudo: ALL=(ALL) ALL
+write_files:
+- path: /etc/init/ttyS0.conf
+  owner: root:root
+  content: |
+    # ttyS0 - getty
+    # This service maintains a getty on ttyS0 from the point the system is
+    # started until it is shut down again.
+    start on stopped rc or RUNLEVEL=[12345]
+    stop on runlevel [!12345]
+    respawn
+    exec /sbin/getty -L 115200 ttyS0 vt102
+  permissions: '0644'
+- path: /etc/systemd/system/dhclient@.service
+  content: |
+    [Unit]
+    Description=Run dhclient on %i interface
+    After=network.target
+    [Service]
+    Type=oneshot
+    ExecStart=/sbin/dhclient %i -pf /var/run/dhclient.%i.pid -lf /var/lib/dhclient/dhclient.%i.lease
+    RemainAfterExit=yes
+  owner: root:root
+  permissions: '0644'
+- path: /etc/rc.local
+  owner: root:root
+  permissions: '0755'
+  content: |-
+    #!/bin/sh
+    ifconfig eth1 up 10.0.0.3 netmask 255.255.255.248
+    exit 0
+</entry>
+        </extensions>
+        <interface id="0" name="eth1" ipv4="10.0.0.3" netPrefixLenV4="29"/>
     </node>
     <node name="internet" type="SIMPLE" subtype="Unmanaged Switch" location="422,410">
         <interface id="0" name="link1"/>
@@ -28,35 +298,178 @@
         <interface id="1" name="link2"/>
     </node>
     <node name="DC-ASA" type="SIMPLE" subtype="ASAv" location="539,540">
-        <interface id="0" name="GigabitEthernet0/0"/>
-        <interface id="1" name="GigabitEthernet0/1"/>
+        <extensions>
+            <entry key="config" type="string">! ASAv Config generated on 2016-10-11 15:28
+! by autonetkit_0.23.2
+!
+hostname DC-ASA
+username cisco password cisco privilege 15
+enable password cisco
+passwd cisco
+names
+!
+interface GigabitEthernet0/0
+  description to internet
+  duplex full
+  nameif outside
+  security-level 0
+  no shutdown
+  ip address 10.0.0.1 255.255.255.248
+interface GigabitEthernet0/1
+  description to dc-inside
+  duplex full
+  nameif outside-1
+  security-level 0
+  no shutdown
+  ip address 10.0.0.13 255.255.255.252
+interface Management0/0
+  description OOB Management
+  duplex full
+  management-only
+  nameif mgmt
+  security-level 100
+  no shutdown
+  ! Configured on launch
+  no ip address
+!
+same-security-traffic permit inter-interface
+logging enable
+logging asdm informational
+user-identity default-domain LOCAL
+aaa authentication ssh console LOCAL
+http server enable
+http 0.0.0.0 0.0.0.0 mgmt
+ssh 0.0.0.0 0.0.0.0 mgmt
+telnet 0.0.0.0 0.0.0.0 mgmt
+http 0.0.0.0 0.0.0.0 outside
+ssh 0.0.0.0 0.0.0.0 outside
+telnet 0.0.0.0 0.0.0.0 outside
+http 0.0.0.0 0.0.0.0 outside-1
+ssh 0.0.0.0 0.0.0.0 outside-1
+telnet 0.0.0.0 0.0.0.0 outside-1
+ssh version 2
+crypto key generate rsa modulus 768
+telnet timeout 15
+console timeout 0
+username cisco password cisco privilege 15
+!
+class-map inspection_default
+ match default-inspection-traffic
+!
+!
+policy-map type inspect dns preset_dns_map
+ parameters
+  message-length maximum client auto
+  message-length maximum 512
+policy-map global_policy
+ class inspection_default
+  inspect ip-options
+  inspect netbios
+  inspect rtsp
+  inspect sunrpc
+  inspect tftp
+  inspect xdmcp
+  inspect dns preset_dns_map
+  inspect ftp
+  inspect h323 h225
+  inspect h323 ras
+  inspect rsh
+  inspect esmtp
+  inspect sqlnet
+  inspect sip
+  inspect skinny
+  inspect icmp
+  inspect http
+!
+service-policy global_policy global
+no call-home reporting anonymous
+call-home
+ profile CiscoTAC-1
+  no active
+end
+        </entry>
+            <entry key="AutoNetkit.mgmt_ip" type="string"></entry>
+        </extensions>
+        <interface id="0" name="GigabitEthernet0/0" ipv4="10.0.0.1" netPrefixLenV4="29"/>
+        <interface id="1" name="GigabitEthernet0/1" ipv4="10.0.0.13" netPrefixLenV4="30"/>
     </node>
     <node name="dc-internal-server" type="SIMPLE" subtype="server" location="545,723" ipv4="10.10.20.100">
-        <interface id="0" name="eth1"/>
+        <extensions>
+            <entry key="config" type="string">#cloud-config
+bootcmd:
+- ln -s -t /etc/rc.d /etc/rc.local
+hostname: dc-internal-server
+manage_etc_hosts: true
+runcmd:
+- start ttyS0
+- systemctl start getty@ttyS0.service
+- systemctl start rc-local
+- sed -i '/^\s*PasswordAuthentication\s\+no/d' /etc/ssh/sshd_config
+- echo "UseDNS no" &gt;&gt; /etc/ssh/sshd_config
+- service ssh restart
+- service sshd restart
+users:
+- default
+- gecos: User configured by VIRL Configuration Engine 0.23.7
+  lock-passwd: false
+  name: cisco
+  plain-text-passwd: cisco
+  shell: /bin/bash
+  ssh-authorized-keys:
+  - VIRL-USER-SSH-PUBLIC-KEY
+  sudo: ALL=(ALL) ALL
+write_files:
+- path: /etc/init/ttyS0.conf
+  owner: root:root
+  content: |
+    # ttyS0 - getty
+    # This service maintains a getty on ttyS0 from the point the system is
+    # started until it is shut down again.
+    start on stopped rc or RUNLEVEL=[12345]
+    stop on runlevel [!12345]
+    respawn
+    exec /sbin/getty -L 115200 ttyS0 vt102
+  permissions: '0644'
+- path: /etc/systemd/system/dhclient@.service
+  content: |
+    [Unit]
+    Description=Run dhclient on %i interface
+    After=network.target
+    [Service]
+    Type=oneshot
+    ExecStart=/sbin/dhclient %i -pf /var/run/dhclient.%i.pid -lf /var/lib/dhclient/dhclient.%i.lease
+    RemainAfterExit=yes
+  owner: root:root
+  permissions: '0644'
+- path: /etc/rc.local
+  owner: root:root
+  permissions: '0755'
+  content: |-
+    #!/bin/sh
+    ifconfig eth1 up 10.0.0.14 netmask 255.255.255.252
+    exit 0
+</entry>
+        </extensions>
+        <interface id="0" name="eth1" ipv4="10.0.0.14" netPrefixLenV4="30"/>
     </node>
     <node name="dc-inside" type="SIMPLE" subtype="Unmanaged Switch" location="543,637">
         <interface id="0" name="link1"/>
         <interface id="1" name="link2"/>
     </node>
     <annotations>
-        <text x="117" y="497" font-size="18">155.201.55.20 (outside)</text>
-        <text x="477" y="293" font-size="18">155.201.55.101</text>
-        <text x="585" y="497" font-size="18">155.201.55.40 (outside)</text>
-        <text x="117" y="521" font-size="18">10.50.50.1 (dmz)</text>
-        <text x="117" y="545" font-size="18">10.10.10.1 (inside)</text>
-        <text x="105" y="773" font-size="18">10.50.50.10</text>
-        <text x="273" y="773" font-size="18">10.10.10.100</text>
-        <text x="489" y="773" font-size="18">10.10.20.100</text>
-        <text x="585" y="521" font-size="18">10.10.20.1 (inside)</text>
-        <text x="59" y="30" font-size="18">Lab Instructions
+        <text x="204" y="462" font-size="18">155.201.55.20 (outside)</text>
+        <text x="436" y="465" font-size="18">155.201.55.40 (outside)</text>
+        <text x="118" y="593" font-size="18">10.50.50.1 (dmz)</text>
+        <text x="248" y="565" font-size="18">10.10.10.1 (inside)</text>
+        <text x="447" y="567" font-size="18">10.10.20.1 (inside)</text>
+        <text x="655" y="548" font-size="18">Lab Instructions
 
 1. Configure basic interfaces and connectivity on each ASA
-
-2. Configure NY-ASA to allow internet devices to connect to NY-DMZ-SERVER using 155.201.55.50 on port 80
-
+2. Configure NY-ASA to allow internet devices to SSH to NY-DMZ-SERVER using IP 155.201.55.50
 3. Configure a site to site VPN between NY-ASA and DC-ASA so the two internal servers can communicate.
-
 4. When you have everything working export configs and send to Mike/Jay</text>
+        <text x="528" y="285" font-size="18">Default Server Login - cisco/cisco</text>
+        <text x="532" y="367" font-size="18">Default ASA Login - no password</text>
     </annotations>
     <connection dst="/virl:topology/virl:node[5]/virl:interface[1]" src="/virl:topology/virl:node[4]/virl:interface[1]"/>
     <connection dst="/virl:topology/virl:node[5]/virl:interface[2]" src="/virl:topology/virl:node[1]/virl:interface[1]"/>
